@@ -11,6 +11,6 @@
 		"ignoreQueues" 		: "",
 		"ignoreTopics" 		: "",
 		"user"   			: "system",
-		"passwd" 			: "newrelic"
+		"passwd" 			: "system"
     }
 ]
