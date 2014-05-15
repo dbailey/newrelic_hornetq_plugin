@@ -1,0 +1,16 @@
+[
+    {
+    	"serverType" 		: "jboss",
+		"pluginName" 		: "Local JBoss Instance",
+		"host"   			: "localhost",
+		"port"   			: "4447",
+		"jmsServers" 		: "all",
+		"queueObjName" 		: "jboss.as:subsystem=messaging,hornetq-server=*,jms-queue=*,*",
+		"topicObjName" 		: "jboss.as:subsystem=messaging,hornetq-server=*,jms-topic=*,*",
+		"ignoreJMSServers" 	: "",
+		"ignoreQueues" 		: "",
+		"ignoreTopics" 		: "",
+		"user"   			: "system",
+		"passwd" 			: "newrelic"
+    }
+]

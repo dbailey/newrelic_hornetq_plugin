@@ -1,0 +1,30 @@
+[
+    {
+    	"serverType" 		: "jboss",
+		"pluginName" 		: "Local JBoss Instance",
+		"host"   			: "localhost",
+		"port"   			: "4447",
+		"jmsServers" 		: "all",
+		"queueObjName" 		: "jboss.as:subsystem=messaging,hornetq-server=*,jms-queue=*,*",
+		"topicObjName" 		: "jboss.as:subsystem=messaging,hornetq-server=*,jms-topic=*,*",
+		"ignoreJMSServers" 	: "",
+		"ignoreQueues" 		: "",
+		"ignoreTopics" 		: "",
+		"user"   			: "system",
+		"passwd" 			: "newrelic"
+    },
+    {
+    	"serverType" 		: "hornetq",
+		"pluginName"   		: "Local HornetQ Instance",
+		"host"   			: "localhost",
+		"port"   			: "3333",
+		"jmsServers" 		: "all",
+		"queueObjName" 		: "org.hornetq:module=JMS,type=Queue,name=*,*",
+		"topicObjName"		: "org.hornetq:module=JMS,type=Topic,name=*,*",
+		"ignoreJMSServers" 	: "",
+		"ignoreQueues" 		: "",
+		"ignoreTopics" 		: "",
+		"user"   			: "system",
+		"passwd" 			: "newrelic"
+    }
+]
