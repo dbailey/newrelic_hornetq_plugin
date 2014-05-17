@@ -78,7 +78,7 @@ Edit config/hornetq.instance.json and specify the necessary property values. Cha
 
 **Note:** Specify the above set of properties for each plugin instance. You will have to follow the syntax (embed the properties for each instance of the plugin in a pair of curley braces separated by a comma).
 
-**Note:** If you would like to monitor multiple log files, copy the block of JSON properties (separated by comma), and change the values accordingly. Example:
+**Note:** If you would like to monitor multiple HornetQ instances, copy the block of JSON properties (separated by comma), and change the values accordingly. Example:
 
     [
       {
