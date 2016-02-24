@@ -140,5 +140,3 @@ To run the plugin from the command line and detach the process so it will run in
 *    [Runit](http://smarden.org/runit/)
 *    [Monit](http://mmonit.com/monit/)
 
-## For support
-Plugin support for troubleshooting assistance can be obtained by visiting New Relic support web site: (https://support.newrelic.com)
