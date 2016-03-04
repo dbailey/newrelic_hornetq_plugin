@@ -231,7 +231,6 @@ public class Context {
         if (connection instanceof HttpsURLConnection && !sslHostVerification) {
             // ssl hostname verifier verifies any host
             ((HttpsURLConnection) connection).setHostnameVerifier(new HostnameVerifier() {
-                @Override
                 public boolean verify(String hostname, SSLSession session) {
                     return true;
                 }
