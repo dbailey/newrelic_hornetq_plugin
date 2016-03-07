@@ -22,5 +22,5 @@ public interface Server {
 
     String getMBeanServerName(MessageType type, ObjectName mbean);
 
-    String getMBeanQueueName(MessageType type, ObjectName mbean);
+    String getMBeanObjectName(MessageType type, ObjectName mbean);
 }

@@ -54,6 +54,11 @@ public class Configuration {
         return Arrays.binarySearch(ignoreQueues, queueName) >= 0;
     }
 
+
+    public boolean isIgnoredTopic(String topicName) {
+        return Arrays.binarySearch(ignoreTopics, topicName) >= 0;
+    }
+
     public String[] getIgnoreQueues() {
         return ignoreQueues;
     }
@@ -89,4 +94,5 @@ public class Configuration {
     public boolean isLocalhost() {
         return this.host.equals("localhost");
     }
+
 }

@@ -87,7 +87,7 @@ public class HornetqServer implements Server {
         return this.configuration.getHost()+ "_hornetq";
     }
 
-    public String getMBeanQueueName(MessageType type, ObjectName mbean) {
+    public String getMBeanObjectName(MessageType type, ObjectName mbean) {
         return mbean.getKeyProperty("name");
     }
 }

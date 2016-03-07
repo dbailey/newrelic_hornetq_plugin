@@ -97,7 +97,7 @@ public class JbossServer implements Server {
         return mbean.getKeyProperty("hornetq-server");
     }
 
-    public String getMBeanQueueName(MessageType type, ObjectName mbean) {
+    public String getMBeanObjectName(MessageType type, ObjectName mbean) {
         return mbean.getKeyProperty("jms-" + type.name().toLowerCase());
     }
 }

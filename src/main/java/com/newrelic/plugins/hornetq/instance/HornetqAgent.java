@@ -11,6 +11,7 @@ import com.newrelic.metrics.publish.configuration.ConfigurationException;
 import com.newrelic.metrics.publish.processors.EpochCounter;
 import com.newrelic.plugins.hornetq.instance.servers.HornetqServer;
 import com.newrelic.plugins.hornetq.instance.servers.JbossServer;
+import org.apache.commons.lang3.Validate;
 
 import static java.lang.String.format;
 import static org.apache.commons.lang3.ObjectUtils.firstNonNull;
@@ -95,6 +96,8 @@ public class HornetqAgent extends Agent {
 
     public void collectMetrics(MBeanServerConnection mbs, ObjectName objName, MessageType messageType, String[] attributes) throws Throwable {
 
+        Validate.notNull(messageType, "MessageType is required.");
+
         Set<ObjectName> mbeans = mbs.queryNames(objName, null);
         Number totalDepth = 0;
         Number totalCount = 0;
@@ -106,10 +109,10 @@ public class HornetqAgent extends Agent {
             logger.info(">>> processing object : " + mbean.getCanonicalName());
 
             String mbeanServerName = server.getMBeanServerName(messageType, mbean);
-            String mbeanQueueName = server.getMBeanQueueName(messageType, mbean);
+            String mbeanObjectName = server.getMBeanObjectName(messageType, mbean);
 
-            if (configuration.isIgnoredQueue(mbeanQueueName)) {
-                logger.info(format(IGNORED_OBJECT_LOG, messageType, mbeanQueueName));
+            if (messageType.isIgnoredObject(configuration, mbeanObjectName)) {
+                logger.info(format(IGNORED_OBJECT_LOG, messageType, mbeanObjectName));
                 continue;
             }
 
@@ -124,7 +127,7 @@ public class HornetqAgent extends Agent {
 
                 logger.fine(format(READING_ATTRIBUTE_LOG, attrName, attrValue));
 
-                String metricName = "JMS" + SEPARATOR + mbeanServerName + SEPARATOR + messageType + SEPARATOR + mbeanQueueName + SEPARATOR + attrName;
+                String metricName = "JMS" + SEPARATOR + mbeanServerName + SEPARATOR + messageType + SEPARATOR + mbeanObjectName + SEPARATOR + attrName;
 
                 if (attrName.endsWith("Added")) {
                     metricValue = firstNonNull(getMetricData(metricName).process(Long.parseLong(attrValue)), 0);
