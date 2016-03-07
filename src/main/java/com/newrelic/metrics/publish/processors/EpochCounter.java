@@ -20,7 +20,6 @@ public class EpochCounter implements Processor {
      * Process a metric value over a time interval.
      * Calling process for a metric value at an interval less than 1 second is not supported. Null is returned for sub-second processing.
      */
-    @Override
     public Number process(Number val) {
         Date currentTime = new Date();
         Number ret = null;

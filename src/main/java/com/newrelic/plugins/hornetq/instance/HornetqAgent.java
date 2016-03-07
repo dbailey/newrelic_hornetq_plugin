@@ -2,17 +2,18 @@ package com.newrelic.plugins.hornetq.instance;
 
 import java.util.logging.Logger;
 import java.util.*;
-import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.net.MalformedURLException;
 
 import javax.management.*;
-import javax.management.remote.*;
-import javax.management.openmbean.*;
 
 import com.newrelic.metrics.publish.Agent;
 import com.newrelic.metrics.publish.binding.Context;
+import com.newrelic.metrics.publish.configuration.ConfigurationException;
 import com.newrelic.metrics.publish.processors.EpochCounter;
+import com.newrelic.plugins.hornetq.instance.servers.HornetqServer;
+import com.newrelic.plugins.hornetq.instance.servers.JbossServer;
+
+import static java.lang.String.format;
+import static org.apache.commons.lang3.ObjectUtils.firstNonNull;
 
 @SuppressWarnings("unused")
 public class HornetqAgent extends Agent {
@@ -20,255 +21,152 @@ public class HornetqAgent extends Agent {
     private static final String GUID = "com.newrelic.plugins.hornetq.instance";
     private static final String version = "0.0.1-beta";
 
-    public static final String AGENT_DEFAULT_HOST = "localhost"; // Default values for hornetq Agent
-    public static final String AGENT_DEFAULT_PORT = "4447"; // Default values for hornetq port in jboss
     public static final String AGENT_DEFAULT_USER = "newrelic";
-    public static final String AGENT_DEFAULT_PASSWD = "securepassword";
     public static final String AGENT_DEFAULT_INSTANCE = "newrelic";
 
     public static final String AGENT_CONFIG_FILE = "hornetq.instance.json";
 
-    
-    
+
     public static final String COMMA = ",";
     public static final String SEPARATOR = "/";
-
-    private String pluginName; // Agent Name
-
-    private String host; // HornetQ Connection parameters
-    private String port;
-    private String user;
-    private String passwd;
-
+    private static final String HORNETQ = "hornetq";
+    private static final String JBOSS = "jboss";
+    private static final String MESSAGE_TYPE_QUEUE = "Queue";
+    private static final String MESSAGE_TYPE_TOPIC = "Topic";
+    private static final String ATTRIBUTE_MESSAGE_COUNT = "messageCount";
+    private static final String IGNORED_OBJECT_LOG = "%s %s ignored!";
+    private static final String READING_ATTRIBUTE_LOG = "Reading attribute %s, original value: %s";
+    private static final String DEFAULT_UNIT = "count";
+    private static final String REPORTED_METRIC_LOG = "Metric %s (%s) -- value: %d";
 
     final Logger logger;
+    private final Configuration configuration;
 
     private boolean firstHarvest = true;
     long harvestCount = 0;
 
-    
-    private String serverType;
-    private Map<String,String[]> env = new HashMap<String, String[]>();
-    private String urlStr = null;
+
     MBeanServerConnection mbs = null;
-    private ObjectName queueObjName = null;
-    private ObjectName topicObjName = null;
-    private String queueAttributes[];
-    private String topicAttributes[];
 
     private Map<String, EpochCounter> countMetrics = new HashMap<String, EpochCounter>();
+    private Server server = null;
 
-    
-    
+
     /**
-     * Default constructor to create a new Oracle Agent
-     * 
-     * @param map
-     * @param String Human name for Agent
-     * @param String Oracle Instance host:port
-     * @param String Oracle user
-     * @param String Oracle user password
-     * @param String CSVm List of metrics to be monitored
+     * Cria uma nova instancia do plugin
      */
-    public HornetqAgent(String serverType, String pluginName, String host, String port, String user, String passwd) {
+    public HornetqAgent(Configuration configuration) throws ConfigurationException {
         super(GUID, version);
 
-        this.serverType = serverType;
-        this.pluginName = pluginName; // Set local attributes for new class object
-        this.host = host;
-        this.port = port;
-        this.user = user;
-        this.passwd = passwd;
+        this.configuration = configuration;
 
         logger = Context.getLogger(); // Set logging to current Context
 
-        if(this.serverType.equals("hornetq")) { // HornetQ Standalone
-            urlStr = "service:jmx:rmi:///jndi/rmi://" + host+":" + port + "/jmxrmi";
-        	try {
-				queueObjName = new ObjectName("org.hornetq:module=JMS,type=Queue,name=*,*");
-	        	topicObjName = new ObjectName("org.hornetq:module=JMS,type=Topic,name=*,*");
-			} catch (MalformedObjectNameException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-
-            queueAttributes = new String[] {
-                "MessageCount",
-                "MessagesAdded",
-                "DeliveringCount",
-                "ConsumerCount",
-                "ScheduledCount"
-            };
-
-            topicAttributes = new String[] {
-                "MessageCount",
-                "MessagesAdded",
-                "DeliveringCount",
-                "SubscriptionCount",
-                "DurableSubscriptionCount",
-                "NonDurableSubscriptionCount",
-                "DurableMessageCount",
-                "NonDurableMessageCount"
-            };
-        }
-        else if(this.serverType.equals("jboss")) { // HornetQ running in JBoss container
-            urlStr = "service:jmx:remoting-jmx://" + host + ":" + port;
-            try {
-				queueObjName = new ObjectName("jboss.as:subsystem=messaging,hornetq-server=*,jms-queue=*,*");
-	            topicObjName = new ObjectName("jboss.as:subsystem=messaging,hornetq-server=*,jms-topic=*,*");
-			} catch (MalformedObjectNameException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-            
-            queueAttributes = new String[] {
-                "messageCount",
-                "messagesAdded",
-                "deliveringCount",
-                "consumerCount",
-                "scheduledCount"
-            };
-
-            topicAttributes = new String[] {
-                "messageCount",
-                "messagesAdded",
-                "deliveringCount",
-                "subscriptionCount",
-                "durableSubscriptionCount",
-                "nonDurableSubscriptionCount",
-                "durableMessageCount",
-                "nonDurableMessageCount"
-            };
-        }
-        else {
-        	System.err.println("Server type can only be \"hornetq\" or \"jboss\".");
-        	System.err.println("Please correct the \"serverType\" property in " + AGENT_CONFIG_FILE + " and restart the plugin agent.\n\n");
-        	System.exit(1);
+        if (HORNETQ.equals(configuration.getServerType())) { // HornetQ Standalone
+            server = new HornetqServer(configuration);
+        } else if (JBOSS.equals(configuration.getServerType())) { // HornetQ running in JBoss container
+            server = new JbossServer(configuration);
+        } else {
+            System.err.println("Server type can only be \"hornetq\" or \"jboss\".");
+            System.err.println("Please correct the \"serverType\" property in " + AGENT_CONFIG_FILE + " and restart the plugin agent.\n\n");
+            System.exit(1);
         }
 
-        // Connecting to the jmx server
-        JMXServiceURL address = null;
-		try {
-			address = new JMXServiceURL(urlStr);
-		} catch (MalformedURLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-        JMXConnector connector = null;
-		try {
-			connector = JMXConnectorFactory.connect(address, env);
-			mbs = connector.getMBeanServerConnection();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+        mbs = server.getConnection();
     }
 
-    
+
+
+
     @Override
-	public void pollCycle() {
-		// TODO Auto-generated method stub
+    public void pollCycle() {
         logger.info("Gathering HornetQ metrics. " + getAgentInfo());
         logger.info("Reporting HornetQ metrics: harvest cycle " + (++harvestCount) + ".");
         try {
-			collectMetrics(mbs, queueObjName, "Queue", queueAttributes);
-	        collectMetrics(mbs, topicObjName, "Topic", topicAttributes);
-		} catch (Throwable e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-        //List<String> results = gatherMetrics(); // Gather Wait metrics
-        //reportMetrics(results); // Report Wait metrics to New Relic
+            collectMetrics(mbs, server.getQueueObjectName(), MessageType.QUEUE, server.getQueueAttributes());
+            collectMetrics(mbs, server.getTopicObjectName(), MessageType.TOPIC, server.getTopicAttributes());
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+
         firstHarvest = false;
 
-	}
+    }
 
-    public void collectMetrics(MBeanServerConnection mbs, ObjectName objName, String messageType, String[] attributes) throws Throwable {
+    public void collectMetrics(MBeanServerConnection mbs, ObjectName objName, MessageType messageType, String[] attributes) throws Throwable {
 
         Set<ObjectName> mbeans = mbs.queryNames(objName, null);
-        //System.out.println(">> mbeans size: " + mbeans.size());
-        String metricName = null;
-        String unit = null;
-        Number metricValue = 0;
         Number totalDepth = 0;
         Number totalCount = 0;
 
-        for( ObjectName mbean : mbeans )
-        {
-        	String name = null;
+        for (ObjectName mbean : mbeans) {
+            String name = null;
             MBeanInfo mbeanInfo = mbs.getMBeanInfo(mbean);
-            logger.info(">>> objectname: " + mbean.getCanonicalName());
-            //System.out.println(">>> classname : " + mbeanInfo.getClassName());
 
-            String mbeanServerName = (serverType.equals("hornetq")) ? host+"_hornetq" : mbean.getKeyProperty("hornetq-server");
-            String mbeanQueueName = (serverType.equals("hornetq")) ? mbean.getKeyProperty("name") : mbean.getKeyProperty("jms-" + messageType.toLowerCase());
-            String mbeanDeployment = mbean.getKeyProperty("deployment");
+            logger.info(">>> processing object : " + mbean.getCanonicalName());
 
-            //  Get attributes
-            //try {
-            
-                AttributeList  attrList = mbs.getAttributes(mbean, attributes);
-                
-                for(int i=0; i<attrList.size(); i++) {
-                	
-                    Attribute attr = (Attribute) attrList.get(i);
-                    String attrName = attr.getName();
-                    String attrValue=attr.getValue().toString();
-                    if(serverType.equals("jboss") &&(attrName.equals("queueAddress") || attrName.equals("topicAddress"))) {
-                        attrValue = attrValue.substring(attrValue.lastIndexOf(".") + 1);
-                    }
+            String mbeanServerName = server.getMBeanServerName(messageType, mbean);
+            String mbeanQueueName = server.getMBeanQueueName(messageType, mbean);
 
-                	metricName = "JMS" + SEPARATOR + mbeanServerName + SEPARATOR + messageType + SEPARATOR + mbeanQueueName + SEPARATOR + attrName;
-                	if(attrName.endsWith("Added")) {
-                		metricValue = getMetricData(metricName).process(Long.parseLong(attrValue));
-                		if (metricValue == null)
-                			metricValue = 0;
-                		totalCount = totalCount.longValue() + metricValue.longValue();
-                		unit = "count/second";
-                	}
-                	else {
-                		metricValue = Long.parseLong(attrValue);
-                    	if(attrName.equals("messageCount"))
-                    		totalDepth = totalDepth.longValue() + metricValue.longValue();
-                		unit = "count";
-                	}
-                	reportMetric(metricName, "count", metricValue.longValue());
-                	if(metricValue.longValue() != 0)
-                		logger.info("Metric " + metricName + " (count) -- value: " + metricValue.longValue());
+            if (configuration.isIgnoredQueue(mbeanQueueName)) {
+                logger.info(format(IGNORED_OBJECT_LOG, messageType, mbeanQueueName));
+                continue;
+            }
 
+            AttributeList attrList = mbs.getAttributes(mbean, attributes);
+
+            for (int i = 0; i < attrList.size(); i++) {
+
+                Attribute attr = (Attribute) attrList.get(i);
+                String attrName = attr.getName();
+                String attrValue = attr.getValue().toString();
+                Number metricValue;
+
+                logger.fine(format(READING_ATTRIBUTE_LOG, attrName, attrValue));
+
+                String metricName = "JMS" + SEPARATOR + mbeanServerName + SEPARATOR + messageType + SEPARATOR + mbeanQueueName + SEPARATOR + attrName;
+
+                if (attrName.endsWith("Added")) {
+                    metricValue = firstNonNull(getMetricData(metricName).process(Long.parseLong(attrValue)), 0);
+                    totalCount = totalCount.longValue() + metricValue.longValue();
+                } else {
+                    metricValue = Long.parseLong(attrValue);
+                    if (attrName.equals(ATTRIBUTE_MESSAGE_COUNT))
+                        totalDepth = totalDepth.longValue() + metricValue.longValue();
                 }
-                
-            //} catch (Throwable e) {
-            //    System.out.println("exception: " + e.getMessage());
-            //}
+
+                reportMetric(metricName, DEFAULT_UNIT, metricValue.longValue());
+                logger.info(format(REPORTED_METRIC_LOG, metricName, DEFAULT_UNIT, metricValue.longValue()));
+
+            }
+
         }
-        
-        reportMetric("JMS" + SEPARATOR + messageType + SEPARATOR + "TotalDepth", "count", totalDepth.longValue());
+
+        reportMetric("JMS" + SEPARATOR + messageType + SEPARATOR + "TotalDepth", DEFAULT_UNIT, totalDepth.longValue());
         logger.info("Metric " + "JMS" + SEPARATOR + messageType + SEPARATOR + "TotalDepth -- value: " + totalDepth.longValue());
-        
-        reportMetric("JMS" + SEPARATOR + messageType + SEPARATOR + "TotalCount", "count", totalCount.longValue());
+
+        reportMetric("JMS" + SEPARATOR + messageType + SEPARATOR + "TotalCount", DEFAULT_UNIT, totalCount.longValue());
         logger.info("Metric " + "JMS" + SEPARATOR + messageType + SEPARATOR + "TotalCount -- value: " + totalCount.longValue());
-        
+
     }
 
     private EpochCounter getMetricData(String metricName) {
-    	EpochCounter ec = countMetrics.get(metricName);
-    	if (ec == null) {
-    		ec = new EpochCounter();
-    		ec.process(0);
-    		countMetrics.put(metricName, ec);
-    	}
-    	return ec;
-    }
-    
-    private String getAgentInfo() {
-        return "Agent Name: " + pluginName + ". Agent Version: " + version;
+        EpochCounter ec = countMetrics.get(metricName);
+        if (ec == null) {
+            ec = new EpochCounter();
+            ec.process(0);
+            countMetrics.put(metricName, ec);
+        }
+        return ec;
     }
 
-	@Override
-	public String getComponentHumanLabel() {
-		// TODO Auto-generated method stub
-		return pluginName;
-	}
+    private String getAgentInfo() {
+        return "Agent Name: " + configuration.getName() + ". Agent Version: " + version;
+    }
+
+    @Override
+    public String getComponentHumanLabel() {
+        return configuration.getName();
+    }
 
 }
