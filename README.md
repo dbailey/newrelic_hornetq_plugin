@@ -71,10 +71,10 @@ Edit config/hornetq.instance.json and specify the necessary property values. Cha
   * queueObjName 		- 
   * topicObjName 		- 
   * ignoreJMSServers 	- 
-  * ignoreQueues 		- 
-  * ignoreTopics 		- 
-  * user 				- 
-  * passwd 				- 
+  * ignoreQueues 		- Comma separated name of queues to ignore
+  * ignoreTopics 		- Comma separated name of queues to ignore
+  * user 				- JMX User
+  * passwd 				- JMX Password
 
 **Note:** Specify the above set of properties for each plugin instance. You will have to follow the syntax (embed the properties for each instance of the plugin in a pair of curley braces separated by a comma).
 
